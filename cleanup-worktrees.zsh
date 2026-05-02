@@ -32,7 +32,7 @@ git rev-parse --verify --quiet "$base_ref" >/dev/null ||
 git worktree list --porcelain | while IFS= read -r line; do
   case "$line" in
     worktree\ *)
-      path="${line#worktree }"
+      worktree_path="${line#worktree }"
       branch_ref=""
       ;;
     branch\ *)
@@ -40,18 +40,18 @@ git worktree list --porcelain | while IFS= read -r line; do
       branch="${branch_ref#refs/heads/}"
       ;;
     "")
-      [[ -n "${path:-}" ]] || continue
+      [[ -n "${worktree_path:-}" ]] || continue
 
-      if [[ "$path" == "$repo_root" ]]; then
-        echo "skip main worktree: $path"
+      if [[ "$worktree_path" == "$repo_root" ]]; then
+        echo "skip main worktree: $worktree_path"
       elif [[ -z "${branch_ref:-}" ]]; then
-        echo "skip detached/no branch: $path"
+        echo "skip detached/no branch: $worktree_path"
       elif [[ "$branch" =~ $protected ]]; then
         echo "skip protected: $branch"
-      elif [[ ! -d "$path" ]]; then
-        echo "stale metadata: $path"
+      elif [[ ! -d "$worktree_path" ]]; then
+        echo "stale metadata: $worktree_path"
         (( delete )) && git worktree prune || echo "  dry-run: git worktree prune"
-      elif ! git -C "$path" diff --quiet || ! git -C "$path" diff --cached --quiet; then
+      elif [[ -n "$(git -C "$worktree_path" status --porcelain)" ]]; then
         echo "skip dirty: $branch"
       else
         upstream=$(git for-each-ref --format='%(upstream:short)' "refs/heads/$branch")
@@ -65,17 +65,17 @@ git worktree list --porcelain | while IFS= read -r line; do
 
         if [[ -n "$reason" ]]; then
           echo "remove: $branch"
-          echo "  path: $path"
+          echo "  path: $worktree_path"
           echo "  reason: $reason"
 
           if (( delete )); then
-            git worktree remove "${force[@]}" "$path"
+            git worktree remove "${force[@]}" "$worktree_path"
 
             if (( delete_branch )) && git show-ref --verify --quiet "refs/heads/$branch"; then
               git branch -d "$branch" || echo "  branch not deleted: $branch"
             fi
           else
-            echo "  dry-run: git worktree remove ${force[*]} '$path'"
+            echo "  dry-run: git worktree remove ${force[*]} '$worktree_path'"
             (( delete_branch )) && echo "  dry-run: git branch -d '$branch'"
           fi
         else
@@ -83,7 +83,7 @@ git worktree list --porcelain | while IFS= read -r line; do
         fi
       fi
 
-      path=""
+      worktree_path=""
       branch_ref=""
       branch=""
       ;;
