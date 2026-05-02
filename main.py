@@ -1,5 +1,5 @@
 def main():
-    print("Hello from worktree-cleanup!")
+    print("Modified")
 
 
 if __name__ == "__main__":
